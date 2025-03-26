@@ -1,0 +1,19 @@
+<Solution>
+  <Folder Name="/Example/" Id="3cd3896f-9088-472b-b0f7-7c09fd16f959">
+    <Project Path="Example/Example.csproj" Id="0996118f-944b-4d41-99aa-f5c8b178ce0e" />
+  </Folder>
+  <Folder Name="/Library/" Id="ddb4ef12-cc4e-5e88-e6fc-71a802f4de97">
+    <Project Path="NpgsqlBulkHelper/NpgsqlBulkHelper.csproj" />
+  </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path=".gitattributes" />
+    <File Path=".gitignore" />
+    <File Path="Analyzers.ruleset" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Build.targets" />
+    <File Path="LICENSE" />
+    <File Path="NpgsqlBulkHelper.sln.DotSettings" />
+    <File Path="README.md" />
+  </Folder>
+</Solution>
