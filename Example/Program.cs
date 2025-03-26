@@ -26,6 +26,7 @@ internal static class Program
             {
                 var value = columns[name];
                 Debug.WriteLine($"{name} : {value.GetType()} : {value}");
+                Console.WriteLine($"{name} : {value.GetType()} : {value}");
             }
 
             Debug.WriteLine("----");
