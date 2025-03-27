@@ -7,8 +7,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="DataReaderAdapter.Object" Version="1.1.0" />
     <PackageReference Include="Npgsql" Version="9.0.3" />
     <PackageReference Include="Usa.Smart.Data.Mapper" Version="2.5.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NpgsqlBulkHelper\NpgsqlBulkHelper.csproj" />
   </ItemGroup>
 
 </Project>
