@@ -15,7 +15,7 @@ internal static class Program
 
     public static async Task Main()
     {
-        using var source = new ObjectDataReaderAdapter<Data>(Enumerable.Range(1, 10000).Select(static x => new Data
+        using var source = new ObjectDataReaderAdapter<Data>(Enumerable.Range(1, 100000).Select(static x => new Data
         {
             Id = x,
             Name = $"Name-{x}",
@@ -25,6 +25,7 @@ internal static class Program
         }));
 
         await using var con = new NpgsqlConnection(ConnectionString);
+        await con.OpenAsync();
         var bulkCopy = new NpgsqlBulkCopy(con)
         {
             DestinationTableName = "data"
