@@ -1,8 +1,8 @@
 namespace NpgsqlBulkHelper;
 
+using System.Collections;
 using System.Data.Common;
 using System.Data;
-using System.Globalization;
 
 using Npgsql;
 
@@ -10,7 +10,9 @@ using NpgsqlTypes;
 
 public sealed class NpgsqlBulkCopy
 {
-    private static readonly Dictionary<Type, IColumnWriter> Writers = [];
+    private static readonly Dictionary<Type, IColumnWriter> ConvertWriters = [];
+
+    private static readonly Dictionary<Type, IColumnWriter> SameTypeWriters = [];
 
     private readonly NpgsqlConnection con;
 
@@ -22,21 +24,23 @@ public sealed class NpgsqlBulkCopy
 
     static NpgsqlBulkCopy()
     {
-        // TODO additional types support ?
-        Writers[typeof(bool)] = new ColumnWriter<bool>();
-        Writers[typeof(byte)] = new ColumnWriter<byte>();
-        Writers[typeof(char)] = new ColumnWriter<char>();
-        Writers[typeof(short)] = new ColumnWriter<short>();
-        Writers[typeof(int)] = new ColumnWriter<int>();
-        Writers[typeof(long)] = new ColumnWriter<long>();
-        Writers[typeof(float)] = new ColumnWriter<float>();
-        Writers[typeof(double)] = new ColumnWriter<double>();
-        Writers[typeof(decimal)] = new ColumnWriter<decimal>();
-        Writers[typeof(DateTime)] = new ColumnWriter<DateTime>();
-        Writers[typeof(Guid)] = new ColumnWriter<Guid>();
-        Writers[typeof(string)] = new ColumnWriter<string>();
-        Writers[typeof(byte[])] = new ColumnWriter<byte[]>();
-        Writers[typeof(char[])] = new ColumnWriter<char[]>();
+        SameTypeWriters[typeof(byte[])] = new SameTypeWriter<byte[]>();
+        SameTypeWriters[typeof(DateTimeOffset)] = new SameTypeWriter<DateTimeOffset>();
+        SameTypeWriters[typeof(TimeSpan)] = new SameTypeWriter<TimeSpan>();
+        SameTypeWriters[typeof(BitArray)] = new SameTypeWriter<BitArray>();
+
+        ConvertWriters[typeof(bool)] = new ConvertWriter<bool>();
+        ConvertWriters[typeof(byte)] = new ConvertWriter<byte>();
+        ConvertWriters[typeof(char)] = new ConvertWriter<char>();
+        ConvertWriters[typeof(short)] = new ConvertWriter<short>();
+        ConvertWriters[typeof(int)] = new ConvertWriter<int>();
+        ConvertWriters[typeof(long)] = new ConvertWriter<long>();
+        ConvertWriters[typeof(float)] = new ConvertWriter<float>();
+        ConvertWriters[typeof(double)] = new ConvertWriter<double>();
+        ConvertWriters[typeof(decimal)] = new ConvertWriter<decimal>();
+        ConvertWriters[typeof(DateTime)] = new ConvertWriter<DateTime>();
+        ConvertWriters[typeof(Guid)] = new ConvertWriter<Guid>();
+        ConvertWriters[typeof(string)] = new ConvertWriter<string>();
     }
 
     public NpgsqlBulkCopy(NpgsqlConnection con)
@@ -46,10 +50,7 @@ public sealed class NpgsqlBulkCopy
 
     public async ValueTask<int> WriteToServerAsync(DataTable table, CancellationToken cancellationToken = default)
     {
-        using var valuesEnumerator = new DataRowsValuesEnumerator(
-            table.Rows.Cast<DataRow>().Where(static x => x is not null),
-            table.Columns.Cast<DataColumn>().Select(static x => x.ColumnName).ToArray(),
-            table.Columns.Count);
+        using var valuesEnumerator = new DataTableValuesEnumerator(table);
         return await WriteToServerAsync(valuesEnumerator, cancellationToken).ConfigureAwait(false);
     }
 
@@ -88,17 +89,11 @@ public sealed class NpgsqlBulkCopy
             for (var i = 0; i < columns.Length; i++)
             {
                 var row = schema.Rows[i];
-                var dataType = (Type)row["DataType"];
-                if (!Writers.TryGetValue(dataType, out var w))
-                {
-                    throw new InvalidOperationException($"DataType {dataType} is not supported.");
-                }
-
                 ref var column = ref columns[i];
                 column.ColumnName = row["ColumnName"].ToString()!;
                 column.ProviderType = (NpgsqlDbType)(int)row["ProviderType"];
+                column.DataType = (Type)row["DataType"];
                 column.SourceOrdinal = i;
-                column.Writer = w;
             }
 
             await reader.CloseAsync().ConfigureAwait(false);
@@ -134,6 +129,20 @@ public sealed class NpgsqlBulkCopy
                 column.SourceOrdinal = String.IsNullOrEmpty(mapping.SourceColumn) ? mapping.SourceOrdinal : valuesEnumerator.GetOrdinal(mapping.SourceColumn);
             }
 
+            // Resolve writer
+            for (var i = 0; i < columns.Length; i++)
+            {
+                ref var column = ref columns[i];
+                var fieldType = valuesEnumerator.GetFieldType(column.SourceOrdinal);
+                var w = FindWriter(column.ProviderType, column.DataType, fieldType);
+                if (w is null)
+                {
+                    throw new InvalidOperationException($"Writer is not supported. fieldType=[{fieldType}], providerType=[{column.ProviderType}]");
+                }
+
+                column.Writer = w;
+            }
+
             // Write data
             var values = new object[valuesEnumerator.FieldCount];
 #pragma warning disable CA2007
@@ -149,7 +158,18 @@ public sealed class NpgsqlBulkCopy
                 for (var i = 0; i < columns.Length; i++)
                 {
                     ref var column = ref columns[i];
-                    await column.Writer.WriteAsync(writer, values[column.SourceOrdinal], column.ProviderType).ConfigureAwait(false);
+                    var value = values[column.SourceOrdinal];
+                    if (value is DBNull or null)
+                    {
+#pragma warning disable CA2016
+                        // ReSharper disable once MethodSupportsCancellation
+                        await writer.WriteNullAsync().ConfigureAwait(false);
+#pragma warning restore CA2016
+                    }
+                    else
+                    {
+                        await column.Writer.WriteAsync(writer, value, column.ProviderType).ConfigureAwait(false);
+                    }
                 }
 
                 rowsInserted++;
@@ -168,182 +188,73 @@ public sealed class NpgsqlBulkCopy
         }
     }
 
+    private static IColumnWriter? FindWriter(NpgsqlDbType providerType, Type dbType, Type fieldType)
+    {
+        switch (providerType)
+        {
+            // date
+            case NpgsqlDbType.Date when fieldType == typeof(DateTimeOffset):
+                return DateTimeOffsetToDateWriter.Instance;
+            case NpgsqlDbType.Date when fieldType == typeof(DateOnly):
+                return DateOnlyToDateWriter.Instance;
+            case NpgsqlDbType.Date when fieldType == typeof(string):
+                return StringToDateWriter.Instance;
+            // time
+            case NpgsqlDbType.Time when fieldType == typeof(DateTime):
+                return DateTimeToTimeWriter.Instance;
+            case NpgsqlDbType.Time when fieldType == typeof(DateTimeOffset):
+                return DateTimeOffsetToTimeWriter.Instance;
+            case NpgsqlDbType.Time when fieldType == typeof(DateOnly):
+                return DateOnlyToTimeWriter.Instance;
+            case NpgsqlDbType.Time when fieldType == typeof(string):
+                return StringToTimeWriter.Instance;
+            // time with time zone
+            case NpgsqlDbType.TimeTz when fieldType == typeof(DateTime):
+                return DateTimeToTimeTzWriter.Instance;
+            case NpgsqlDbType.TimeTz when fieldType == typeof(DateOnly):
+                return DateOnlyToTimeTzWriter.Instance;
+            case NpgsqlDbType.TimeTz when fieldType == typeof(string):
+                return StringToTimeTzWriter.Instance;
+            // timestamp
+            case NpgsqlDbType.Timestamp when fieldType == typeof(DateTime):
+                return DateTimeToTimestampWriter.Instance;
+            case NpgsqlDbType.Timestamp when fieldType == typeof(DateTimeOffset):
+                return DateTimeOffsetToTimeWriter.Instance;
+            case NpgsqlDbType.Timestamp when fieldType == typeof(DateOnly):
+                return DateOnlyToTimestampWriter.Instance;
+            case NpgsqlDbType.Timestamp when fieldType == typeof(string):
+                return StringToTimestampWriter.Instance;
+            // timestamp with time zone
+            case NpgsqlDbType.TimestampTz when fieldType == typeof(DateTime):
+                return DateTimeToTimestampTzWriter.Instance;
+            case NpgsqlDbType.TimestampTz when fieldType == typeof(DateTimeOffset):
+                return DateTimeOffsetToTimestampTzWriter.Instance;
+            case NpgsqlDbType.TimestampTz when fieldType == typeof(DateOnly):
+                return DateOnlyToTimestampTzWriter.Instance;
+            case NpgsqlDbType.TimestampTz when fieldType == typeof(string):
+                return StringToTimestampTzWriter.Instance;
+        }
+
+        // Same type only
+        if ((dbType == fieldType) && SameTypeWriters.TryGetValue(dbType, out var writer))
+        {
+            return writer;
+        }
+
+        // Can convert
+        return ConvertWriters.GetValueOrDefault(dbType);
+    }
+
     private struct ColumnInfo
     {
         public string ColumnName;
 
         public NpgsqlDbType ProviderType;
 
+        public Type DataType;
+
         public int SourceOrdinal;
 
         public IColumnWriter Writer;
     }
-
-    private interface IColumnWriter
-    {
-        ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType);
-    }
-
-    private sealed class ColumnWriter<T> : IColumnWriter
-    {
-        public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType)
-        {
-            // TODO additional types support ?
-            if (value is DBNull or null)
-            {
-                await writer.WriteNullAsync().ConfigureAwait(false);
-            }
-            else if (value is T t)
-            {
-                await writer.WriteAsync(t, providerType).ConfigureAwait(false);
-            }
-            else
-            {
-                await writer.WriteAsync((T)Convert.ChangeType(value, typeof(T), CultureInfo.InvariantCulture), providerType).ConfigureAwait(false);
-            }
-        }
-    }
-}
-
-internal interface IValuesEnumerator : IDisposable
-{
-    int FieldCount { get; }
-
-    int GetOrdinal(string name);
-
-    ValueTask<bool> MoveNextAsync();
-
-    void GetValues(object[] values);
-}
-
-internal sealed class DbDataReaderEnumerator : IValuesEnumerator
-{
-    private readonly DbDataReader dataReader;
-
-    public int FieldCount { get; }
-
-    public DbDataReaderEnumerator(DbDataReader dataReader)
-    {
-        this.dataReader = dataReader;
-        FieldCount = dataReader.FieldCount;
-    }
-
-    public void Dispose()
-    {
-        dataReader.Dispose();
-    }
-
-    public int GetOrdinal(string name) => dataReader.GetOrdinal(name);
-
-    public ValueTask<bool> MoveNextAsync() => new(dataReader.ReadAsync());
-
-    public void GetValues(object[] values) => dataReader.GetValues(values);
-}
-
-internal sealed class DataReaderEnumerator : IValuesEnumerator
-{
-    private readonly IDataReader dataReader;
-
-    public int FieldCount { get; }
-
-    public DataReaderEnumerator(IDataReader dataReader)
-    {
-        this.dataReader = dataReader;
-        FieldCount = dataReader.FieldCount;
-    }
-
-    public void Dispose()
-    {
-        dataReader.Dispose();
-    }
-
-    public int GetOrdinal(string name) => dataReader.GetOrdinal(name);
-
-    public ValueTask<bool> MoveNextAsync() => new(dataReader.Read());
-
-    public void GetValues(object[] values) => dataReader.GetValues(values);
-}
-
-internal sealed class DataRowsValuesEnumerator : IValuesEnumerator
-{
-    private readonly IEnumerator<DataRow> dataRows;
-
-    private readonly string[] columnNames;
-
-    public int FieldCount { get; }
-
-    public DataRowsValuesEnumerator(IEnumerable<DataRow> dataRows, string[] columnNames, int fieldCount)
-    {
-        this.dataRows = dataRows.GetEnumerator();
-        this.columnNames = columnNames;
-        FieldCount = fieldCount;
-    }
-
-    public void Dispose()
-    {
-        dataRows.Dispose();
-    }
-
-    public int GetOrdinal(string name) => Array.IndexOf(columnNames, name);
-
-    public ValueTask<bool> MoveNextAsync() => new(dataRows.MoveNext());
-
-    public void GetValues(object[] values)
-    {
-        var row = dataRows.Current;
-        for (var i = 0; i < FieldCount; i++)
-        {
-            values[i] = row[i];
-        }
-    }
-}
-
-public sealed class NpgsqlBulkCopyColumnMapping
-{
-    public int SourceOrdinal { get; }
-
-    public int DestinationOrdinal { get; }
-
-    public string? SourceColumn { get; }
-
-    public string? DestinationColumn { get; }
-
-    public NpgsqlBulkCopyColumnMapping(int sourceOrdinal, int destinationOrdinal)
-    {
-        SourceOrdinal = sourceOrdinal;
-        DestinationOrdinal = destinationOrdinal;
-    }
-
-    public NpgsqlBulkCopyColumnMapping(int sourceOrdinal, string destinationColumn)
-    {
-        SourceOrdinal = sourceOrdinal;
-        DestinationColumn = destinationColumn;
-    }
-
-    public NpgsqlBulkCopyColumnMapping(string sourceColumn, int destinationOrdinal)
-    {
-        SourceColumn = sourceColumn;
-        DestinationOrdinal = destinationOrdinal;
-    }
-
-    public NpgsqlBulkCopyColumnMapping(string sourceColumn, string destinationColumn)
-    {
-        SourceColumn = sourceColumn;
-        DestinationColumn = destinationColumn;
-    }
-}
-
-public static class NpgsqlBulkCopyExtensions
-{
-    public static void AddMapping(this NpgsqlBulkCopy bulkCopy, int sourceOrdinal, int destinationOrdinal) =>
-        bulkCopy.ColumnMappings.Add(new NpgsqlBulkCopyColumnMapping(sourceOrdinal, destinationOrdinal));
-
-    public static void AddMapping(this NpgsqlBulkCopy bulkCopy, int sourceOrdinal, string destinationColumn) =>
-        bulkCopy.ColumnMappings.Add(new NpgsqlBulkCopyColumnMapping(sourceOrdinal, destinationColumn));
-
-    public static void AddMapping(this NpgsqlBulkCopy bulkCopy, string sourceColumn, int destinationOrdinal) =>
-        bulkCopy.ColumnMappings.Add(new NpgsqlBulkCopyColumnMapping(sourceColumn, destinationOrdinal));
-
-    public static void AddMapping(this NpgsqlBulkCopy bulkCopy, string sourceColumn, string destinationColumn) =>
-        bulkCopy.ColumnMappings.Add(new NpgsqlBulkCopyColumnMapping(sourceColumn, destinationColumn));
 }
