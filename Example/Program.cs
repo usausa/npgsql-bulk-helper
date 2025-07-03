@@ -3,7 +3,7 @@ namespace Example;
 
 using System.Diagnostics;
 
-using DataReaderAdapter;
+using Mofucat.DataToolkit;
 
 using Npgsql;
 
@@ -15,7 +15,7 @@ internal static class Program
 
     public static async Task Main()
     {
-        using var source = new ObjectDataReaderAdapter<Data>(Enumerable.Range(1, 100000).Select(static x => new Data
+        using var source = new ObjectDataReader<Data>(Enumerable.Range(1, 100000).Select(static x => new Data
         {
             Id = x,
             Name = $"Name-{x}",
