@@ -3,7 +3,7 @@ namespace Example;
 
 using System.Diagnostics;
 
-using Mofucat.DataToolkit;
+using Mofucat.DataBridge;
 
 using Npgsql;
 
