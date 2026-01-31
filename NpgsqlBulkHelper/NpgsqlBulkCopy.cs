@@ -1,6 +1,7 @@
 namespace NpgsqlBulkHelper;
 
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Data.Common;
 using System.Data;
 using System.Net;
@@ -19,6 +20,12 @@ public sealed class NpgsqlBulkCopy
 
     private static readonly Dictionary<Type, IColumnWriter> ArrayWriters = [];
 
+    private static readonly Dictionary<Type, IColumnWriter> GeometryWriters = [];
+
+    private static readonly Dictionary<Type, IColumnWriter> RangeWriters = [];
+
+    private static readonly ConcurrentDictionary<(Type FieldType, NpgsqlDbType ProviderType), IColumnWriter> CustomWriters = new();
+
     private readonly NpgsqlConnection con;
 
     public string? DestinationTableName { get; set; }
@@ -29,6 +36,7 @@ public sealed class NpgsqlBulkCopy
 
     static NpgsqlBulkCopy()
     {
+        // Same writers
         SameTypeWriters[typeof(byte[])] = new SameTypeWriter<byte[]>();
         SameTypeWriters[typeof(DateTimeOffset)] = new SameTypeWriter<DateTimeOffset>();
         SameTypeWriters[typeof(TimeSpan)] = new SameTypeWriter<TimeSpan>();
@@ -37,6 +45,7 @@ public sealed class NpgsqlBulkCopy
         SameTypeWriters[typeof(IPAddress)] = new SameTypeWriter<IPAddress>();
         SameTypeWriters[typeof(PhysicalAddress)] = new SameTypeWriter<PhysicalAddress>();
 
+        // Convert writers
         ConvertWriters[typeof(bool)] = new ConvertWriter<bool>();
         ConvertWriters[typeof(byte)] = new ConvertWriter<byte>();
         ConvertWriters[typeof(sbyte)] = new ConvertWriter<sbyte>();
@@ -54,7 +63,7 @@ public sealed class NpgsqlBulkCopy
         ConvertWriters[typeof(Guid)] = new ConvertWriter<Guid>();
         ConvertWriters[typeof(string)] = new ConvertWriter<string>();
 
-        // Array writers for common types
+        // Array writers
         ArrayWriters[typeof(int[])] = ArrayWriter<int>.Instance;
         ArrayWriters[typeof(long[])] = ArrayWriter<long>.Instance;
         ArrayWriters[typeof(short[])] = ArrayWriter<short>.Instance;
@@ -65,12 +74,44 @@ public sealed class NpgsqlBulkCopy
         ArrayWriters[typeof(bool[])] = ArrayWriter<bool>.Instance;
         ArrayWriters[typeof(Guid[])] = ArrayWriter<Guid>.Instance;
         ArrayWriters[typeof(DateTime[])] = ArrayWriter<DateTime>.Instance;
+        ArrayWriters[typeof(byte[][])] = ArrayWriter<byte[]>.Instance;
+
+        // Geometry writers
+        GeometryWriters[typeof(NpgsqlPoint)] = PointWriter.Instance;
+        GeometryWriters[typeof(NpgsqlLine)] = LineWriter.Instance;
+        GeometryWriters[typeof(NpgsqlLSeg)] = LSegWriter.Instance;
+        GeometryWriters[typeof(NpgsqlBox)] = BoxWriter.Instance;
+        GeometryWriters[typeof(NpgsqlPath)] = PathWriter.Instance;
+        GeometryWriters[typeof(NpgsqlPolygon)] = PolygonWriter.Instance;
+        GeometryWriters[typeof(NpgsqlCircle)] = CircleWriter.Instance;
+
+        // Range writers
+        RangeWriters[typeof(NpgsqlRange<int>)] = RangeWriter<int>.Instance;
+        RangeWriters[typeof(NpgsqlRange<long>)] = RangeWriter<long>.Instance;
+        RangeWriters[typeof(NpgsqlRange<decimal>)] = RangeWriter<decimal>.Instance;
+        RangeWriters[typeof(NpgsqlRange<DateTime>)] = RangeWriter<DateTime>.Instance;
+        RangeWriters[typeof(NpgsqlRange<DateOnly>)] = RangeWriter<DateOnly>.Instance;
     }
 
     public NpgsqlBulkCopy(NpgsqlConnection con)
     {
         this.con = con;
     }
+
+    public static void RegisterWriter(Type fieldType, NpgsqlDbType providerType, IColumnWriter writer)
+    {
+        CustomWriters[(fieldType, providerType)] = writer;
+    }
+
+    public static void RegisterWriter<T>(NpgsqlDbType providerType, Func<T, object> converter)
+    {
+        CustomWriters[(typeof(T), providerType)] = new DelegateWriter<T>(converter);
+    }
+
+    public static bool UnregisterWriter(Type fieldType, NpgsqlDbType providerType) =>
+        CustomWriters.TryRemove((fieldType, providerType), out _);
+
+    public static void ClearCustomWriters() => CustomWriters.Clear();
 
     public async ValueTask<int> WriteToServerAsync(DataTable table, CancellationToken cancellationToken = default)
     {
@@ -214,6 +255,21 @@ public sealed class NpgsqlBulkCopy
 
     private static IColumnWriter? FindWriter(NpgsqlDbType providerType, Type dbType, Type fieldType)
     {
+        if (CustomWriters.TryGetValue((fieldType, providerType), out var customWriter))
+        {
+            return customWriter;
+        }
+
+        var underlyingType = Nullable.GetUnderlyingType(fieldType);
+        if (underlyingType is not null)
+        {
+            var innerWriter = FindWriter(providerType, dbType, underlyingType);
+            if (innerWriter is not null)
+            {
+                return innerWriter;
+            }
+        }
+
         // ReSharper disable CommentTypo
         switch (providerType)
         {
@@ -266,6 +322,11 @@ public sealed class NpgsqlBulkCopy
                 return TimeOnlyToTimestampTzWriter.Instance;
             case NpgsqlDbType.TimestampTz when fieldType == typeof(string):
                 return StringToTimestampTzWriter.Instance;
+            // interval
+            case NpgsqlDbType.Interval when fieldType == typeof(NpgsqlInterval):
+                return IntervalWriter.Instance;
+            case NpgsqlDbType.Interval when fieldType == typeof(TimeSpan):
+                return TimeSpanToIntervalWriter.Instance;
             // json / jsonb
             case NpgsqlDbType.Json or NpgsqlDbType.Jsonb when fieldType == typeof(string):
                 return StringToJsonWriter.Instance;
@@ -283,6 +344,21 @@ public sealed class NpgsqlBulkCopy
                 return PhysicalAddressWriter.Instance;
             case NpgsqlDbType.MacAddr or NpgsqlDbType.MacAddr8 when fieldType == typeof(string):
                 return StringToPhysicalAddressWriter.Instance;
+            // geometry types
+            case NpgsqlDbType.Point when fieldType == typeof(NpgsqlPoint):
+                return PointWriter.Instance;
+            case NpgsqlDbType.Line when fieldType == typeof(NpgsqlLine):
+                return LineWriter.Instance;
+            case NpgsqlDbType.LSeg when fieldType == typeof(NpgsqlLSeg):
+                return LSegWriter.Instance;
+            case NpgsqlDbType.Box when fieldType == typeof(NpgsqlBox):
+                return BoxWriter.Instance;
+            case NpgsqlDbType.Path when fieldType == typeof(NpgsqlPath):
+                return PathWriter.Instance;
+            case NpgsqlDbType.Polygon when fieldType == typeof(NpgsqlPolygon):
+                return PolygonWriter.Instance;
+            case NpgsqlDbType.Circle when fieldType == typeof(NpgsqlCircle):
+                return CircleWriter.Instance;
         }
         // ReSharper restore CommentTypo
 
@@ -290,6 +366,21 @@ public sealed class NpgsqlBulkCopy
         if (fieldType.IsArray && ArrayWriters.TryGetValue(fieldType, out var arrayWriter))
         {
             return arrayWriter;
+        }
+
+        // Range types
+        if (fieldType.IsGenericType && fieldType.GetGenericTypeDefinition() == typeof(NpgsqlRange<>))
+        {
+            if (RangeWriters.TryGetValue(fieldType, out var rangeWriter))
+            {
+                return rangeWriter;
+            }
+        }
+
+        // Geometry types (fallback)
+        if (GeometryWriters.TryGetValue(fieldType, out var geometryWriter))
+        {
+            return geometryWriter;
         }
 
         // Same type only

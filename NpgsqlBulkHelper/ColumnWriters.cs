@@ -9,16 +9,21 @@ using Npgsql;
 
 using NpgsqlTypes;
 
-internal interface IColumnWriter
+public interface IColumnWriter
 {
     ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType);
+}
+
+public interface IColumnWriter<in T> : IColumnWriter
+{
+    ValueTask WriteAsync(NpgsqlBinaryImporter writer, T value, NpgsqlDbType providerType);
 }
 
 //--------------------------------------------------------------------------------
 // Generic
 //--------------------------------------------------------------------------------
 
-internal sealed class ConvertWriter<T> : IColumnWriter
+internal sealed class ConvertWriter<T> : IColumnWriter<T>
 {
     public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType)
     {
@@ -31,14 +36,18 @@ internal sealed class ConvertWriter<T> : IColumnWriter
             await writer.WriteAsync((T)Convert.ChangeType(value, typeof(T), CultureInfo.InvariantCulture), providerType).ConfigureAwait(false);
         }
     }
+
+    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, T value, NpgsqlDbType providerType) =>
+        await writer.WriteAsync(value, providerType).ConfigureAwait(false);
 }
 
-internal sealed class SameTypeWriter<T> : IColumnWriter
+internal sealed class SameTypeWriter<T> : IColumnWriter<T>
 {
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType)
-    {
+    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
         await writer.WriteAsync((T)value, providerType).ConfigureAwait(false);
-    }
+
+    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, T value, NpgsqlDbType providerType) =>
+        await writer.WriteAsync(value, providerType).ConfigureAwait(false);
 }
 
 //--------------------------------------------------------------------------------
@@ -311,4 +320,152 @@ internal sealed class ArrayWriter<T> : IColumnWriter
 
     public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
         await writer.WriteAsync((T[])value, providerType).ConfigureAwait(false);
+}
+
+//--------------------------------------------------------------------------------
+// Geometry
+//--------------------------------------------------------------------------------
+
+internal sealed class PointWriter : IColumnWriter<NpgsqlPoint>
+{
+    public static PointWriter Instance { get; } = new();
+
+    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        await writer.WriteAsync((NpgsqlPoint)value, providerType).ConfigureAwait(false);
+
+    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, NpgsqlPoint value, NpgsqlDbType providerType) =>
+        await writer.WriteAsync(value, providerType).ConfigureAwait(false);
+}
+
+internal sealed class LineWriter : IColumnWriter<NpgsqlLine>
+{
+    public static LineWriter Instance { get; } = new();
+
+    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        await writer.WriteAsync((NpgsqlLine)value, providerType).ConfigureAwait(false);
+
+    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, NpgsqlLine value, NpgsqlDbType providerType) =>
+        await writer.WriteAsync(value, providerType).ConfigureAwait(false);
+}
+
+internal sealed class LSegWriter : IColumnWriter<NpgsqlLSeg>
+{
+    public static LSegWriter Instance { get; } = new();
+
+    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        await writer.WriteAsync((NpgsqlLSeg)value, providerType).ConfigureAwait(false);
+
+    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, NpgsqlLSeg value, NpgsqlDbType providerType) =>
+        await writer.WriteAsync(value, providerType).ConfigureAwait(false);
+}
+
+internal sealed class BoxWriter : IColumnWriter<NpgsqlBox>
+{
+    public static BoxWriter Instance { get; } = new();
+
+    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        await writer.WriteAsync((NpgsqlBox)value, providerType).ConfigureAwait(false);
+
+    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, NpgsqlBox value, NpgsqlDbType providerType) =>
+        await writer.WriteAsync(value, providerType).ConfigureAwait(false);
+}
+
+internal sealed class PathWriter : IColumnWriter<NpgsqlPath>
+{
+    public static PathWriter Instance { get; } = new();
+
+    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        await writer.WriteAsync((NpgsqlPath)value, providerType).ConfigureAwait(false);
+
+    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, NpgsqlPath value, NpgsqlDbType providerType) =>
+        await writer.WriteAsync(value, providerType).ConfigureAwait(false);
+}
+
+internal sealed class PolygonWriter : IColumnWriter<NpgsqlPolygon>
+{
+    public static PolygonWriter Instance { get; } = new();
+
+    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        await writer.WriteAsync((NpgsqlPolygon)value, providerType).ConfigureAwait(false);
+
+    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, NpgsqlPolygon value, NpgsqlDbType providerType) =>
+        await writer.WriteAsync(value, providerType).ConfigureAwait(false);
+}
+
+internal sealed class CircleWriter : IColumnWriter<NpgsqlCircle>
+{
+    public static CircleWriter Instance { get; } = new();
+
+    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        await writer.WriteAsync((NpgsqlCircle)value, providerType).ConfigureAwait(false);
+
+    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, NpgsqlCircle value, NpgsqlDbType providerType) =>
+        await writer.WriteAsync(value, providerType).ConfigureAwait(false);
+}
+
+//--------------------------------------------------------------------------------
+// Interval
+//--------------------------------------------------------------------------------
+
+internal sealed class IntervalWriter : IColumnWriter<NpgsqlInterval>
+{
+    public static IntervalWriter Instance { get; } = new();
+
+    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        await writer.WriteAsync((NpgsqlInterval)value, providerType).ConfigureAwait(false);
+
+    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, NpgsqlInterval value, NpgsqlDbType providerType) =>
+        await writer.WriteAsync(value, providerType).ConfigureAwait(false);
+}
+
+internal sealed class TimeSpanToIntervalWriter : IColumnWriter<TimeSpan>
+{
+    public static TimeSpanToIntervalWriter Instance { get; } = new();
+
+    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        await writer.WriteAsync((TimeSpan)value, providerType).ConfigureAwait(false);
+
+    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, TimeSpan value, NpgsqlDbType providerType) =>
+        await writer.WriteAsync(value, providerType).ConfigureAwait(false);
+}
+
+//--------------------------------------------------------------------------------
+// Range
+//--------------------------------------------------------------------------------
+
+internal sealed class RangeWriter<T> : IColumnWriter<NpgsqlRange<T>>
+{
+    public static RangeWriter<T> Instance { get; } = new();
+
+    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        await writer.WriteAsync((NpgsqlRange<T>)value, providerType).ConfigureAwait(false);
+
+    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, NpgsqlRange<T> value, NpgsqlDbType providerType) =>
+        await writer.WriteAsync(value, providerType).ConfigureAwait(false);
+}
+
+//--------------------------------------------------------------------------------
+// Custom Writer Wrapper
+//--------------------------------------------------------------------------------
+
+internal sealed class DelegateWriter<T> : IColumnWriter<T>
+{
+    private readonly Func<T, object> converter;
+
+    public DelegateWriter(Func<T, object> converter)
+    {
+        this.converter = converter;
+    }
+
+    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType)
+    {
+        var converted = value is T t ? converter(t) : converter((T)Convert.ChangeType(value, typeof(T), CultureInfo.InvariantCulture));
+        await writer.WriteAsync(converted, providerType).ConfigureAwait(false);
+    }
+
+    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, T value, NpgsqlDbType providerType)
+    {
+        var converted = converter(value);
+        await writer.WriteAsync(converted, providerType).ConfigureAwait(false);
+    }
 }
