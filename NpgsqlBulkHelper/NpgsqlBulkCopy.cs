@@ -3,6 +3,9 @@ namespace NpgsqlBulkHelper;
 using System.Collections;
 using System.Data.Common;
 using System.Data;
+using System.Net;
+using System.Net.NetworkInformation;
+using System.Text.Json;
 
 using Npgsql;
 
@@ -13,6 +16,8 @@ public sealed class NpgsqlBulkCopy
     private static readonly Dictionary<Type, IColumnWriter> ConvertWriters = [];
 
     private static readonly Dictionary<Type, IColumnWriter> SameTypeWriters = [];
+
+    private static readonly Dictionary<Type, IColumnWriter> ArrayWriters = [];
 
     private readonly NpgsqlConnection con;
 
@@ -27,20 +32,39 @@ public sealed class NpgsqlBulkCopy
         SameTypeWriters[typeof(byte[])] = new SameTypeWriter<byte[]>();
         SameTypeWriters[typeof(DateTimeOffset)] = new SameTypeWriter<DateTimeOffset>();
         SameTypeWriters[typeof(TimeSpan)] = new SameTypeWriter<TimeSpan>();
+        SameTypeWriters[typeof(TimeOnly)] = new SameTypeWriter<TimeOnly>();
         SameTypeWriters[typeof(BitArray)] = new SameTypeWriter<BitArray>();
+        SameTypeWriters[typeof(IPAddress)] = new SameTypeWriter<IPAddress>();
+        SameTypeWriters[typeof(PhysicalAddress)] = new SameTypeWriter<PhysicalAddress>();
 
         ConvertWriters[typeof(bool)] = new ConvertWriter<bool>();
         ConvertWriters[typeof(byte)] = new ConvertWriter<byte>();
+        ConvertWriters[typeof(sbyte)] = new ConvertWriter<sbyte>();
         ConvertWriters[typeof(char)] = new ConvertWriter<char>();
         ConvertWriters[typeof(short)] = new ConvertWriter<short>();
+        ConvertWriters[typeof(ushort)] = new ConvertWriter<ushort>();
         ConvertWriters[typeof(int)] = new ConvertWriter<int>();
+        ConvertWriters[typeof(uint)] = new ConvertWriter<uint>();
         ConvertWriters[typeof(long)] = new ConvertWriter<long>();
+        ConvertWriters[typeof(ulong)] = new ConvertWriter<ulong>();
         ConvertWriters[typeof(float)] = new ConvertWriter<float>();
         ConvertWriters[typeof(double)] = new ConvertWriter<double>();
         ConvertWriters[typeof(decimal)] = new ConvertWriter<decimal>();
         ConvertWriters[typeof(DateTime)] = new ConvertWriter<DateTime>();
         ConvertWriters[typeof(Guid)] = new ConvertWriter<Guid>();
         ConvertWriters[typeof(string)] = new ConvertWriter<string>();
+
+        // Array writers for common types
+        ArrayWriters[typeof(int[])] = ArrayWriter<int>.Instance;
+        ArrayWriters[typeof(long[])] = ArrayWriter<long>.Instance;
+        ArrayWriters[typeof(short[])] = ArrayWriter<short>.Instance;
+        ArrayWriters[typeof(float[])] = ArrayWriter<float>.Instance;
+        ArrayWriters[typeof(double[])] = ArrayWriter<double>.Instance;
+        ArrayWriters[typeof(decimal[])] = ArrayWriter<decimal>.Instance;
+        ArrayWriters[typeof(string[])] = ArrayWriter<string>.Instance;
+        ArrayWriters[typeof(bool[])] = ArrayWriter<bool>.Instance;
+        ArrayWriters[typeof(Guid[])] = ArrayWriter<Guid>.Instance;
+        ArrayWriters[typeof(DateTime[])] = ArrayWriter<DateTime>.Instance;
     }
 
     public NpgsqlBulkCopy(NpgsqlConnection con)
@@ -190,6 +214,7 @@ public sealed class NpgsqlBulkCopy
 
     private static IColumnWriter? FindWriter(NpgsqlDbType providerType, Type dbType, Type fieldType)
     {
+        // ReSharper disable CommentTypo
         switch (providerType)
         {
             // date
@@ -206,6 +231,8 @@ public sealed class NpgsqlBulkCopy
                 return DateTimeOffsetToTimeWriter.Instance;
             case NpgsqlDbType.Time when fieldType == typeof(DateOnly):
                 return DateOnlyToTimeWriter.Instance;
+            case NpgsqlDbType.Time when fieldType == typeof(TimeOnly):
+                return TimeOnlyToTimeWriter.Instance;
             case NpgsqlDbType.Time when fieldType == typeof(string):
                 return StringToTimeWriter.Instance;
             // time with time zone
@@ -213,15 +240,19 @@ public sealed class NpgsqlBulkCopy
                 return DateTimeToTimeTzWriter.Instance;
             case NpgsqlDbType.TimeTz when fieldType == typeof(DateOnly):
                 return DateOnlyToTimeTzWriter.Instance;
+            case NpgsqlDbType.TimeTz when fieldType == typeof(TimeOnly):
+                return TimeOnlyToTimeTzWriter.Instance;
             case NpgsqlDbType.TimeTz when fieldType == typeof(string):
                 return StringToTimeTzWriter.Instance;
             // timestamp
             case NpgsqlDbType.Timestamp when fieldType == typeof(DateTime):
                 return DateTimeToTimestampWriter.Instance;
             case NpgsqlDbType.Timestamp when fieldType == typeof(DateTimeOffset):
-                return DateTimeOffsetToTimeWriter.Instance;
+                return DateTimeOffsetToTimestampWriter.Instance;
             case NpgsqlDbType.Timestamp when fieldType == typeof(DateOnly):
                 return DateOnlyToTimestampWriter.Instance;
+            case NpgsqlDbType.Timestamp when fieldType == typeof(TimeOnly):
+                return TimeOnlyToTimestampWriter.Instance;
             case NpgsqlDbType.Timestamp when fieldType == typeof(string):
                 return StringToTimestampWriter.Instance;
             // timestamp with time zone
@@ -231,8 +262,34 @@ public sealed class NpgsqlBulkCopy
                 return DateTimeOffsetToTimestampTzWriter.Instance;
             case NpgsqlDbType.TimestampTz when fieldType == typeof(DateOnly):
                 return DateOnlyToTimestampTzWriter.Instance;
+            case NpgsqlDbType.TimestampTz when fieldType == typeof(TimeOnly):
+                return TimeOnlyToTimestampTzWriter.Instance;
             case NpgsqlDbType.TimestampTz when fieldType == typeof(string):
                 return StringToTimestampTzWriter.Instance;
+            // json / jsonb
+            case NpgsqlDbType.Json or NpgsqlDbType.Jsonb when fieldType == typeof(string):
+                return StringToJsonWriter.Instance;
+            case NpgsqlDbType.Json or NpgsqlDbType.Jsonb when fieldType == typeof(JsonDocument):
+                return JsonDocumentToJsonWriter.Instance;
+            case NpgsqlDbType.Json or NpgsqlDbType.Jsonb when fieldType == typeof(JsonElement):
+                return JsonElementToJsonWriter.Instance;
+            // inet / cidr
+            case NpgsqlDbType.Inet or NpgsqlDbType.Cidr when fieldType == typeof(IPAddress):
+                return IpAddressWriter.Instance;
+            case NpgsqlDbType.Inet or NpgsqlDbType.Cidr when fieldType == typeof(string):
+                return StringToIpAddressWriter.Instance;
+            // macaddr / macaddr8
+            case NpgsqlDbType.MacAddr or NpgsqlDbType.MacAddr8 when fieldType == typeof(PhysicalAddress):
+                return PhysicalAddressWriter.Instance;
+            case NpgsqlDbType.MacAddr or NpgsqlDbType.MacAddr8 when fieldType == typeof(string):
+                return StringToPhysicalAddressWriter.Instance;
+        }
+        // ReSharper restore CommentTypo
+
+        // Array types
+        if (fieldType.IsArray && ArrayWriters.TryGetValue(fieldType, out var arrayWriter))
+        {
+            return arrayWriter;
         }
 
         // Same type only
