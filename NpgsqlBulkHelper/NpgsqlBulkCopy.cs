@@ -2,8 +2,8 @@ namespace NpgsqlBulkHelper;
 
 using System.Collections;
 using System.Collections.Concurrent;
-using System.Data.Common;
 using System.Data;
+using System.Data.Common;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Text.Json;
@@ -32,7 +32,7 @@ public sealed class NpgsqlBulkCopy
 
     public int BulkCopyTimeout { get; set; }
 
-    public List<NpgsqlBulkCopyColumnMapping> ColumnMappings { get; } = new();
+    public List<NpgsqlBulkCopyColumnMapping> ColumnMappings { get; } = [];
 
     static NpgsqlBulkCopy()
     {

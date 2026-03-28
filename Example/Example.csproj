@@ -8,7 +8,7 @@
 
   <ItemGroup>
     <PackageReference Include="Mofucat.DataBridge" Version="1.5.0" />
-    <PackageReference Include="Npgsql" Version="10.0.1" />
+    <PackageReference Include="Npgsql" Version="10.0.2" />
   </ItemGroup>
 
   <ItemGroup>

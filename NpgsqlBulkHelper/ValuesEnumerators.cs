@@ -1,7 +1,7 @@
 namespace NpgsqlBulkHelper;
 
-using System.Data.Common;
 using System.Data;
+using System.Data.Common;
 
 internal interface IValuesEnumerator : IDisposable
 {
