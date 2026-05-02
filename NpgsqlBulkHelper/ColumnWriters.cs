@@ -11,12 +11,14 @@ using NpgsqlTypes;
 
 public interface IColumnWriter
 {
-    ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType);
+    Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType);
 }
 
 public interface IColumnWriter<in T> : IColumnWriter
 {
-    ValueTask WriteAsync(NpgsqlBinaryImporter writer, T value, NpgsqlDbType providerType);
+#pragma warning disable IDE0051
+    Task WriteAsync(NpgsqlBinaryImporter writer, T value, NpgsqlDbType providerType);
+#pragma warning restore IDE0051
 }
 
 //--------------------------------------------------------------------------------
@@ -25,29 +27,26 @@ public interface IColumnWriter<in T> : IColumnWriter
 
 internal sealed class ConvertWriter<T> : IColumnWriter<T>
 {
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType)
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType)
     {
         if (value is T t)
         {
-            await writer.WriteAsync(t, providerType).ConfigureAwait(false);
+            return writer.WriteAsync(t, providerType);
         }
-        else
-        {
-            await writer.WriteAsync((T)Convert.ChangeType(value, typeof(T), CultureInfo.InvariantCulture), providerType).ConfigureAwait(false);
-        }
+        return writer.WriteAsync((T)Convert.ChangeType(value, typeof(T), CultureInfo.InvariantCulture), providerType);
     }
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, T value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync(value, providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, T value, NpgsqlDbType providerType) =>
+        writer.WriteAsync(value, providerType);
 }
 
 internal sealed class SameTypeWriter<T> : IColumnWriter<T>
 {
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync((T)value, providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync((T)value, providerType);
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, T value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync(value, providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, T value, NpgsqlDbType providerType) =>
+        writer.WriteAsync(value, providerType);
 }
 
 //--------------------------------------------------------------------------------
@@ -58,32 +57,32 @@ internal sealed class DateTimeToTimeWriter : IColumnWriter
 {
     public static DateTimeToTimeWriter Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync(((DateTime)value).TimeOfDay, providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync(((DateTime)value).TimeOfDay, providerType);
 }
 
 internal sealed class DateTimeToTimeTzWriter : IColumnWriter
 {
     public static DateTimeToTimeTzWriter Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync(new DateTimeOffset((DateTime)value), providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync(new DateTimeOffset((DateTime)value), providerType);
 }
 
 internal sealed class DateTimeToTimestampWriter : IColumnWriter
 {
     public static DateTimeToTimestampWriter Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync(DateTime.SpecifyKind((DateTime)value, DateTimeKind.Unspecified), providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync(DateTime.SpecifyKind((DateTime)value, DateTimeKind.Unspecified), providerType);
 }
 
 internal sealed class DateTimeToTimestampTzWriter : IColumnWriter
 {
     public static DateTimeToTimestampTzWriter Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync(((DateTime)value).ToUniversalTime(), providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync(((DateTime)value).ToUniversalTime(), providerType);
 }
 
 //--------------------------------------------------------------------------------
@@ -94,32 +93,32 @@ internal sealed class DateTimeOffsetToDateWriter : IColumnWriter
 {
     public static DateTimeOffsetToDateWriter Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync(((DateTimeOffset)value).DateTime, providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync(((DateTimeOffset)value).DateTime, providerType);
 }
 
 internal sealed class DateTimeOffsetToTimeWriter : IColumnWriter
 {
     public static DateTimeOffsetToTimeWriter Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync(((DateTimeOffset)value).TimeOfDay, providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync(((DateTimeOffset)value).TimeOfDay, providerType);
 }
 
 internal sealed class DateTimeOffsetToTimestampWriter : IColumnWriter
 {
     public static DateTimeOffsetToTimestampWriter Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync(new DateTime(((DateTimeOffset)value).Ticks, DateTimeKind.Unspecified), providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync(new DateTime(((DateTimeOffset)value).Ticks, DateTimeKind.Unspecified), providerType);
 }
 
 internal sealed class DateTimeOffsetToTimestampTzWriter : IColumnWriter
 {
     public static DateTimeOffsetToTimestampTzWriter Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync(new DateTime(((DateTimeOffset)value).UtcTicks, DateTimeKind.Utc), providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync(new DateTime(((DateTimeOffset)value).UtcTicks, DateTimeKind.Utc), providerType);
 }
 
 //--------------------------------------------------------------------------------
@@ -130,40 +129,40 @@ internal sealed class DateOnlyToDateWriter : IColumnWriter
 {
     public static DateOnlyToDateWriter Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync(((DateOnly)value).ToDateTime(TimeOnly.MinValue), providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync(((DateOnly)value).ToDateTime(TimeOnly.MinValue), providerType);
 }
 
 internal sealed class DateOnlyToTimeWriter : IColumnWriter
 {
     public static DateOnlyToTimeWriter Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync(((DateOnly)value).ToDateTime(TimeOnly.MinValue).TimeOfDay, providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync(((DateOnly)value).ToDateTime(TimeOnly.MinValue).TimeOfDay, providerType);
 }
 
 internal sealed class DateOnlyToTimeTzWriter : IColumnWriter
 {
     public static DateOnlyToTimeTzWriter Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync(new DateTimeOffset(((DateOnly)value).ToDateTime(TimeOnly.MinValue)), providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync(new DateTimeOffset(((DateOnly)value).ToDateTime(TimeOnly.MinValue)), providerType);
 }
 
 internal sealed class DateOnlyToTimestampWriter : IColumnWriter
 {
     public static DateOnlyToTimestampWriter Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync(DateTime.SpecifyKind(((DateOnly)value).ToDateTime(TimeOnly.MinValue), DateTimeKind.Unspecified), providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync(DateTime.SpecifyKind(((DateOnly)value).ToDateTime(TimeOnly.MinValue), DateTimeKind.Unspecified), providerType);
 }
 
 internal sealed class DateOnlyToTimestampTzWriter : IColumnWriter
 {
     public static DateOnlyToTimestampTzWriter Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync(((DateOnly)value).ToDateTime(TimeOnly.MinValue).ToUniversalTime(), providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync(((DateOnly)value).ToDateTime(TimeOnly.MinValue).ToUniversalTime(), providerType);
 }
 
 //--------------------------------------------------------------------------------
@@ -174,32 +173,32 @@ internal sealed class TimeOnlyToTimeWriter : IColumnWriter
 {
     public static TimeOnlyToTimeWriter Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync(((TimeOnly)value).ToTimeSpan(), providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync(((TimeOnly)value).ToTimeSpan(), providerType);
 }
 
 internal sealed class TimeOnlyToTimeTzWriter : IColumnWriter
 {
     public static TimeOnlyToTimeTzWriter Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync(new DateTimeOffset(DateOnly.FromDateTime(DateTime.Now).ToDateTime((TimeOnly)value)), providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync(new DateTimeOffset(DateOnly.FromDateTime(DateTime.Now).ToDateTime((TimeOnly)value)), providerType);
 }
 
 internal sealed class TimeOnlyToTimestampWriter : IColumnWriter
 {
     public static TimeOnlyToTimestampWriter Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync(DateTime.SpecifyKind(DateOnly.FromDateTime(DateTime.Now).ToDateTime((TimeOnly)value), DateTimeKind.Unspecified), providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync(DateTime.SpecifyKind(DateOnly.FromDateTime(DateTime.Now).ToDateTime((TimeOnly)value), DateTimeKind.Unspecified), providerType);
 }
 
 internal sealed class TimeOnlyToTimestampTzWriter : IColumnWriter
 {
     public static TimeOnlyToTimestampTzWriter Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync(DateOnly.FromDateTime(DateTime.Now).ToDateTime((TimeOnly)value).ToUniversalTime(), providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync(DateOnly.FromDateTime(DateTime.Now).ToDateTime((TimeOnly)value).ToUniversalTime(), providerType);
 }
 
 //--------------------------------------------------------------------------------
@@ -210,40 +209,40 @@ internal sealed class StringToDateWriter : IColumnWriter
 {
     public static StringToDateWriter Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync(DateTime.Parse((string)value, CultureInfo.InvariantCulture), providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync(DateTime.Parse((string)value, CultureInfo.InvariantCulture), providerType);
 }
 
 internal sealed class StringToTimeWriter : IColumnWriter
 {
     public static StringToTimeWriter Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync(DateTime.Parse((string)value, CultureInfo.InvariantCulture).TimeOfDay, providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync(DateTime.Parse((string)value, CultureInfo.InvariantCulture).TimeOfDay, providerType);
 }
 
 internal sealed class StringToTimeTzWriter : IColumnWriter
 {
     public static StringToTimeTzWriter Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync(DateTimeOffset.Parse((string)value, CultureInfo.InvariantCulture), providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync(DateTimeOffset.Parse((string)value, CultureInfo.InvariantCulture), providerType);
 }
 
 internal sealed class StringToTimestampWriter : IColumnWriter
 {
     public static StringToTimestampWriter Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync(DateTime.SpecifyKind(DateTime.Parse((string)value, CultureInfo.InvariantCulture), DateTimeKind.Unspecified), providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync(DateTime.SpecifyKind(DateTime.Parse((string)value, CultureInfo.InvariantCulture), DateTimeKind.Unspecified), providerType);
 }
 
 internal sealed class StringToTimestampTzWriter : IColumnWriter
 {
     public static StringToTimestampTzWriter Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync(DateTime.Parse((string)value, CultureInfo.InvariantCulture).ToUniversalTime(), providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync(DateTime.Parse((string)value, CultureInfo.InvariantCulture).ToUniversalTime(), providerType);
 }
 
 //--------------------------------------------------------------------------------
@@ -254,24 +253,24 @@ internal sealed class StringToJsonWriter : IColumnWriter
 {
     public static StringToJsonWriter Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync((string)value, providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync((string)value, providerType);
 }
 
 internal sealed class JsonDocumentToJsonWriter : IColumnWriter
 {
     public static JsonDocumentToJsonWriter Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync(((JsonDocument)value).RootElement.GetRawText(), providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync(((JsonDocument)value).RootElement.GetRawText(), providerType);
 }
 
 internal sealed class JsonElementToJsonWriter : IColumnWriter
 {
     public static JsonElementToJsonWriter Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync(((JsonElement)value).GetRawText(), providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync(((JsonElement)value).GetRawText(), providerType);
 }
 
 //--------------------------------------------------------------------------------
@@ -282,32 +281,32 @@ internal sealed class IpAddressWriter : IColumnWriter
 {
     public static IpAddressWriter Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync((IPAddress)value, providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync((IPAddress)value, providerType);
 }
 
 internal sealed class StringToIpAddressWriter : IColumnWriter
 {
     public static StringToIpAddressWriter Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync(IPAddress.Parse((string)value), providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync(IPAddress.Parse((string)value), providerType);
 }
 
 internal sealed class PhysicalAddressWriter : IColumnWriter
 {
     public static PhysicalAddressWriter Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync((PhysicalAddress)value, providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync((PhysicalAddress)value, providerType);
 }
 
 internal sealed class StringToPhysicalAddressWriter : IColumnWriter
 {
     public static StringToPhysicalAddressWriter Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync(PhysicalAddress.Parse((string)value), providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync(PhysicalAddress.Parse((string)value), providerType);
 }
 
 //--------------------------------------------------------------------------------
@@ -318,8 +317,8 @@ internal sealed class ArrayWriter<T> : IColumnWriter
 {
     public static ArrayWriter<T> Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync((T[])value, providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync((T[])value, providerType);
 }
 
 //--------------------------------------------------------------------------------
@@ -330,77 +329,77 @@ internal sealed class PointWriter : IColumnWriter<NpgsqlPoint>
 {
     public static PointWriter Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync((NpgsqlPoint)value, providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync((NpgsqlPoint)value, providerType);
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, NpgsqlPoint value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync(value, providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, NpgsqlPoint value, NpgsqlDbType providerType) =>
+        writer.WriteAsync(value, providerType);
 }
 
 internal sealed class LineWriter : IColumnWriter<NpgsqlLine>
 {
     public static LineWriter Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync((NpgsqlLine)value, providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync((NpgsqlLine)value, providerType);
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, NpgsqlLine value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync(value, providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, NpgsqlLine value, NpgsqlDbType providerType) =>
+        writer.WriteAsync(value, providerType);
 }
 
 internal sealed class LSegWriter : IColumnWriter<NpgsqlLSeg>
 {
     public static LSegWriter Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync((NpgsqlLSeg)value, providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync((NpgsqlLSeg)value, providerType);
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, NpgsqlLSeg value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync(value, providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, NpgsqlLSeg value, NpgsqlDbType providerType) =>
+        writer.WriteAsync(value, providerType);
 }
 
 internal sealed class BoxWriter : IColumnWriter<NpgsqlBox>
 {
     public static BoxWriter Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync((NpgsqlBox)value, providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync((NpgsqlBox)value, providerType);
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, NpgsqlBox value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync(value, providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, NpgsqlBox value, NpgsqlDbType providerType) =>
+        writer.WriteAsync(value, providerType);
 }
 
 internal sealed class PathWriter : IColumnWriter<NpgsqlPath>
 {
     public static PathWriter Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync((NpgsqlPath)value, providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync((NpgsqlPath)value, providerType);
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, NpgsqlPath value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync(value, providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, NpgsqlPath value, NpgsqlDbType providerType) =>
+        writer.WriteAsync(value, providerType);
 }
 
 internal sealed class PolygonWriter : IColumnWriter<NpgsqlPolygon>
 {
     public static PolygonWriter Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync((NpgsqlPolygon)value, providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync((NpgsqlPolygon)value, providerType);
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, NpgsqlPolygon value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync(value, providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, NpgsqlPolygon value, NpgsqlDbType providerType) =>
+        writer.WriteAsync(value, providerType);
 }
 
 internal sealed class CircleWriter : IColumnWriter<NpgsqlCircle>
 {
     public static CircleWriter Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync((NpgsqlCircle)value, providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync((NpgsqlCircle)value, providerType);
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, NpgsqlCircle value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync(value, providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, NpgsqlCircle value, NpgsqlDbType providerType) =>
+        writer.WriteAsync(value, providerType);
 }
 
 //--------------------------------------------------------------------------------
@@ -411,22 +410,22 @@ internal sealed class IntervalWriter : IColumnWriter<NpgsqlInterval>
 {
     public static IntervalWriter Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync((NpgsqlInterval)value, providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync((NpgsqlInterval)value, providerType);
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, NpgsqlInterval value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync(value, providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, NpgsqlInterval value, NpgsqlDbType providerType) =>
+        writer.WriteAsync(value, providerType);
 }
 
 internal sealed class TimeSpanToIntervalWriter : IColumnWriter<TimeSpan>
 {
     public static TimeSpanToIntervalWriter Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync((TimeSpan)value, providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync((TimeSpan)value, providerType);
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, TimeSpan value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync(value, providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, TimeSpan value, NpgsqlDbType providerType) =>
+        writer.WriteAsync(value, providerType);
 }
 
 //--------------------------------------------------------------------------------
@@ -437,11 +436,11 @@ internal sealed class RangeWriter<T> : IColumnWriter<NpgsqlRange<T>>
 {
     public static RangeWriter<T> Instance { get; } = new();
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync((NpgsqlRange<T>)value, providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType) =>
+        writer.WriteAsync((NpgsqlRange<T>)value, providerType);
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, NpgsqlRange<T> value, NpgsqlDbType providerType) =>
-        await writer.WriteAsync(value, providerType).ConfigureAwait(false);
+    public Task WriteAsync(NpgsqlBinaryImporter writer, NpgsqlRange<T> value, NpgsqlDbType providerType) =>
+        writer.WriteAsync(value, providerType);
 }
 
 //--------------------------------------------------------------------------------
@@ -457,15 +456,15 @@ internal sealed class DelegateWriter<T> : IColumnWriter<T>
         this.converter = converter;
     }
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType)
+    public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType)
     {
         var converted = value is T t ? converter(t) : converter((T)Convert.ChangeType(value, typeof(T), CultureInfo.InvariantCulture));
-        await writer.WriteAsync(converted, providerType).ConfigureAwait(false);
+        return writer.WriteAsync(converted, providerType);
     }
 
-    public async ValueTask WriteAsync(NpgsqlBinaryImporter writer, T value, NpgsqlDbType providerType)
+    public Task WriteAsync(NpgsqlBinaryImporter writer, T value, NpgsqlDbType providerType)
     {
         var converted = converter(value);
-        await writer.WriteAsync(converted, providerType).ConfigureAwait(false);
+        return writer.WriteAsync(converted, providerType);
     }
 }
