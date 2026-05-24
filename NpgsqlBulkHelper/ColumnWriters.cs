@@ -28,7 +28,7 @@ public interface IColumnWriter<in T> : IColumnWriter
 
 internal sealed class ConvertWriter<T> : IColumnWriter<T>
 {
-    [UnconditionalSuppressMessage("ReflectionAnalysis", "IL2026", Justification = "Convert.ChangeType is only called for IConvertible primitive types registered in static constructor.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Convert.ChangeType is only called for IConvertible primitive types registered in static constructor.")]
     [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Convert.ChangeType is only called for IConvertible primitive types registered in static constructor.")]
     public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType)
     {
@@ -459,7 +459,7 @@ internal sealed class DelegateWriter<T> : IColumnWriter<T>
         this.converter = converter;
     }
 
-    [UnconditionalSuppressMessage("ReflectionAnalysis", "IL2026", Justification = "Convert.ChangeType and WriteAsync(object) are only used for types registered via RegisterWriter<T>.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Convert.ChangeType and WriteAsync(object) are only used for types registered via RegisterWriter<T>.")]
     [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Convert.ChangeType and WriteAsync(object) are only used for types registered via RegisterWriter<T>.")]
     public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType)
     {
@@ -467,7 +467,7 @@ internal sealed class DelegateWriter<T> : IColumnWriter<T>
         return writer.WriteAsync(converted, providerType);
     }
 
-    [UnconditionalSuppressMessage("ReflectionAnalysis", "IL2026", Justification = "WriteAsync(object) is only used for types registered via RegisterWriter<T>.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "WriteAsync(object) is only used for types registered via RegisterWriter<T>.")]
     [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "WriteAsync(object) is only used for types registered via RegisterWriter<T>.")]
     public Task WriteAsync(NpgsqlBinaryImporter writer, T value, NpgsqlDbType providerType)
     {
