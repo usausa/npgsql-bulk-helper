@@ -2,6 +2,7 @@ namespace NpgsqlBulkHelper;
 
 using System.Data;
 using System.Data.Common;
+using System.Diagnostics.CodeAnalysis;
 
 internal interface IValuesEnumerator : IDisposable
 {
@@ -68,6 +69,8 @@ internal sealed class DataReaderEnumerator : IValuesEnumerator
     public void GetValues(object[] values) => dataReader.GetValues(values);
 }
 
+[RequiresUnreferencedCode("DataTable requires unreferenced code for AOT compatibility.")]
+[RequiresDynamicCode("DataTable requires dynamic code for AOT compatibility.")]
 internal sealed class DataTableValuesEnumerator : IValuesEnumerator
 {
     private readonly DataTable table;

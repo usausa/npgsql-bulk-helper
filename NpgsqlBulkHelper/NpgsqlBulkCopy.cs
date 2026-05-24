@@ -4,6 +4,7 @@ using System.Collections;
 using System.Collections.Concurrent;
 using System.Data;
 using System.Data.Common;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Text.Json;
@@ -103,6 +104,8 @@ public sealed class NpgsqlBulkCopy
         CustomWriters[(fieldType, providerType)] = writer;
     }
 
+    [RequiresUnreferencedCode("Converter delegate uses object return type which may require reflection for AOT.")]
+    [RequiresDynamicCode("Converter delegate uses object return type which may require dynamic code for AOT.")]
     public static void RegisterWriter<T>(NpgsqlDbType providerType, Func<T, object> converter)
     {
         CustomWriters[(typeof(T), providerType)] = new DelegateWriter<T>(converter);
@@ -113,6 +116,8 @@ public sealed class NpgsqlBulkCopy
 
     public static void ClearCustomWriters() => CustomWriters.Clear();
 
+    [RequiresUnreferencedCode("DataTable requires unreferenced code for AOT compatibility.")]
+    [RequiresDynamicCode("DataTable requires dynamic code for AOT compatibility.")]
     public async ValueTask<int> WriteToServerAsync(DataTable table, CancellationToken cancellationToken = default)
     {
         using var valuesEnumerator = new DataTableValuesEnumerator(table);
@@ -148,16 +153,16 @@ public sealed class NpgsqlBulkCopy
 #pragma warning disable CA2007
             await using var reader = await cmd.ExecuteReaderAsync(CommandBehavior.SchemaOnly | CommandBehavior.KeyInfo, cancellationToken).ConfigureAwait(false);
 #pragma warning restore CA2007
-            using var schema = (await reader.GetSchemaTableAsync(cancellationToken).ConfigureAwait(false))!;
+            var columnSchema = await reader.GetColumnSchemaAsync(cancellationToken).ConfigureAwait(false);
 
-            var columns = new ColumnInfo[schema.Rows.Count];
+            var columns = new ColumnInfo[columnSchema.Count];
             for (var i = 0; i < columns.Length; i++)
             {
-                var row = schema.Rows[i];
+                var col = (Npgsql.Schema.NpgsqlDbColumn)columnSchema[i];
                 ref var column = ref columns[i];
-                column.ColumnName = row["ColumnName"].ToString()!;
-                column.ProviderType = (NpgsqlDbType)(int)row["ProviderType"];
-                column.DataType = (Type)row["DataType"];
+                column.ColumnName = col.ColumnName;
+                column.ProviderType = col.NpgsqlDbType ?? NpgsqlDbType.Unknown;
+                column.DataType = col.DataType ?? typeof(object);
                 column.SourceOrdinal = i;
             }
 

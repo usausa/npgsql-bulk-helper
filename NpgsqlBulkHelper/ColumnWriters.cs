@@ -1,5 +1,6 @@
 namespace NpgsqlBulkHelper;
 
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Net;
 using System.Net.NetworkInformation;
@@ -27,6 +28,8 @@ public interface IColumnWriter<in T> : IColumnWriter
 
 internal sealed class ConvertWriter<T> : IColumnWriter<T>
 {
+    [UnconditionalSuppressMessage("ReflectionAnalysis", "IL2026", Justification = "Convert.ChangeType is only called for IConvertible primitive types registered in static constructor.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Convert.ChangeType is only called for IConvertible primitive types registered in static constructor.")]
     public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType)
     {
         if (value is T t)
@@ -456,12 +459,16 @@ internal sealed class DelegateWriter<T> : IColumnWriter<T>
         this.converter = converter;
     }
 
+    [UnconditionalSuppressMessage("ReflectionAnalysis", "IL2026", Justification = "Convert.ChangeType and WriteAsync(object) are only used for types registered via RegisterWriter<T>.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Convert.ChangeType and WriteAsync(object) are only used for types registered via RegisterWriter<T>.")]
     public Task WriteAsync(NpgsqlBinaryImporter writer, object value, NpgsqlDbType providerType)
     {
         var converted = value is T t ? converter(t) : converter((T)Convert.ChangeType(value, typeof(T), CultureInfo.InvariantCulture));
         return writer.WriteAsync(converted, providerType);
     }
 
+    [UnconditionalSuppressMessage("ReflectionAnalysis", "IL2026", Justification = "WriteAsync(object) is only used for types registered via RegisterWriter<T>.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "WriteAsync(object) is only used for types registered via RegisterWriter<T>.")]
     public Task WriteAsync(NpgsqlBinaryImporter writer, T value, NpgsqlDbType providerType)
     {
         var converted = converter(value);
