@@ -26,6 +26,12 @@ internal static class Program
 
         await using var con = new NpgsqlConnection(ConnectionString);
         await con.OpenAsync();
+
+        await using (var cmd = new NpgsqlCommand("TRUNCATE TABLE data", con))
+        {
+            await cmd.ExecuteNonQueryAsync();
+        }
+
         var bulkCopy = new NpgsqlBulkCopy(con)
         {
             DestinationTableName = "data"
