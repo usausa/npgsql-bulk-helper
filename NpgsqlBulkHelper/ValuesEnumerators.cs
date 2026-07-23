@@ -12,9 +12,9 @@ internal interface IValuesEnumerator : IDisposable
 
     Type GetFieldType(int index);
 
-    ValueTask<bool> MoveNextAsync();
+    ValueTask<bool> MoveNextAsync(CancellationToken cancellationToken);
 
-    void GetValues(object[] values);
+    object GetValue(int index);
 }
 
 internal sealed class DbDataReaderEnumerator : IValuesEnumerator
@@ -31,16 +31,15 @@ internal sealed class DbDataReaderEnumerator : IValuesEnumerator
 
     public void Dispose()
     {
-        dataReader.Dispose();
     }
 
     public int GetOrdinal(string name) => dataReader.GetOrdinal(name);
 
     public Type GetFieldType(int index) => dataReader.GetFieldType(index);
 
-    public ValueTask<bool> MoveNextAsync() => new(dataReader.ReadAsync());
+    public ValueTask<bool> MoveNextAsync(CancellationToken cancellationToken) => new(dataReader.ReadAsync(cancellationToken));
 
-    public void GetValues(object[] values) => dataReader.GetValues(values);
+    public object GetValue(int index) => dataReader.GetValue(index);
 }
 
 internal sealed class DataReaderEnumerator : IValuesEnumerator
@@ -57,16 +56,20 @@ internal sealed class DataReaderEnumerator : IValuesEnumerator
 
     public void Dispose()
     {
-        dataReader.Dispose();
+        // Ownership of the reader remains with the caller
     }
 
     public int GetOrdinal(string name) => dataReader.GetOrdinal(name);
 
     public Type GetFieldType(int index) => dataReader.GetFieldType(index);
 
-    public ValueTask<bool> MoveNextAsync() => new(dataReader.Read());
+    public ValueTask<bool> MoveNextAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return new(dataReader.Read());
+    }
 
-    public void GetValues(object[] values) => dataReader.GetValues(values);
+    public object GetValue(int index) => dataReader.GetValue(index);
 }
 
 [RequiresUnreferencedCode("DataTable requires unreferenced code for AOT compatibility.")]
@@ -94,14 +97,11 @@ internal sealed class DataTableValuesEnumerator : IValuesEnumerator
 
     public Type GetFieldType(int index) => table.Columns[index].DataType;
 
-    public ValueTask<bool> MoveNextAsync() => new(dataRows.MoveNext());
-
-    public void GetValues(object[] values)
+    public ValueTask<bool> MoveNextAsync(CancellationToken cancellationToken)
     {
-        var row = dataRows.Current;
-        for (var i = 0; i < FieldCount; i++)
-        {
-            values[i] = row[i];
-        }
+        cancellationToken.ThrowIfCancellationRequested();
+        return new(dataRows.MoveNext());
     }
+
+    public object GetValue(int index) => dataRows.Current[index];
 }

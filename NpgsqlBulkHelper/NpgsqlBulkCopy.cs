@@ -143,12 +143,13 @@ public sealed class NpgsqlBulkCopy
             }
 
             // Prepare schema
+            var tableName = PostgresIdentifier.Quote(DestinationTableName!);
 #pragma warning disable CA2007
             await using var cmd = con.CreateCommand();
 #pragma warning restore CA2007
             cmd.CommandType = CommandType.Text;
 #pragma warning disable CA2100
-            cmd.CommandText = $"SELECT * FROM {DestinationTableName} WHERE false";
+            cmd.CommandText = $"SELECT * FROM {tableName} WHERE false";
 #pragma warning restore CA2100
 #pragma warning disable CA2007
             await using var reader = await cmd.ExecuteReaderAsync(CommandBehavior.SchemaOnly | CommandBehavior.KeyInfo, cancellationToken).ConfigureAwait(false);
@@ -214,21 +215,19 @@ public sealed class NpgsqlBulkCopy
             }
 
             // Write data
-            var values = new object[valuesEnumerator.FieldCount];
+            var columnList = String.Join(", ", columns.Select(static x => PostgresIdentifier.QuotePart(x.ColumnName)));
 #pragma warning disable CA2007
-            await using var writer = await con.BeginBinaryImportAsync($"COPY {DestinationTableName} FROM STDIN (FORMAT BINARY)", cancellationToken).ConfigureAwait(false);
+            await using var writer = await con.BeginBinaryImportAsync($"COPY {tableName} ({columnList}) FROM STDIN (FORMAT BINARY)", cancellationToken).ConfigureAwait(false);
 #pragma warning restore CA2007
             writer.Timeout = TimeSpan.FromSeconds(BulkCopyTimeout);
 
-            while (await valuesEnumerator.MoveNextAsync().ConfigureAwait(false))
+            while (await valuesEnumerator.MoveNextAsync(cancellationToken).ConfigureAwait(false))
             {
-                valuesEnumerator.GetValues(values);
-
                 await writer.StartRowAsync(cancellationToken).ConfigureAwait(false);
                 for (var i = 0; i < columns.Length; i++)
                 {
                     ref var column = ref columns[i];
-                    var value = values[column.SourceOrdinal];
+                    var value = valuesEnumerator.GetValue(column.SourceOrdinal);
                     if (value is DBNull or null)
                     {
 #pragma warning disable CA2016
@@ -312,8 +311,6 @@ public sealed class NpgsqlBulkCopy
                 return DateTimeOffsetToTimestampWriter.Instance;
             case NpgsqlDbType.Timestamp when fieldType == typeof(DateOnly):
                 return DateOnlyToTimestampWriter.Instance;
-            case NpgsqlDbType.Timestamp when fieldType == typeof(TimeOnly):
-                return TimeOnlyToTimestampWriter.Instance;
             case NpgsqlDbType.Timestamp when fieldType == typeof(string):
                 return StringToTimestampWriter.Instance;
             // timestamp with time zone
@@ -323,8 +320,6 @@ public sealed class NpgsqlBulkCopy
                 return DateTimeOffsetToTimestampTzWriter.Instance;
             case NpgsqlDbType.TimestampTz when fieldType == typeof(DateOnly):
                 return DateOnlyToTimestampTzWriter.Instance;
-            case NpgsqlDbType.TimestampTz when fieldType == typeof(TimeOnly):
-                return TimeOnlyToTimestampTzWriter.Instance;
             case NpgsqlDbType.TimestampTz when fieldType == typeof(string):
                 return StringToTimestampTzWriter.Instance;
             // interval
