@@ -219,7 +219,10 @@ public sealed class NpgsqlBulkCopy
 #pragma warning disable CA2007
             await using var writer = await con.BeginBinaryImportAsync($"COPY {tableName} ({columnList}) FROM STDIN (FORMAT BINARY)", cancellationToken).ConfigureAwait(false);
 #pragma warning restore CA2007
-            writer.Timeout = TimeSpan.FromSeconds(BulkCopyTimeout);
+            if (BulkCopyTimeout > 0)
+            {
+                writer.Timeout = TimeSpan.FromSeconds(BulkCopyTimeout);
+            }
 
             while (await valuesEnumerator.MoveNextAsync(cancellationToken).ConfigureAwait(false))
             {
@@ -230,10 +233,7 @@ public sealed class NpgsqlBulkCopy
                     var value = valuesEnumerator.GetValue(column.SourceOrdinal);
                     if (value is DBNull or null)
                     {
-#pragma warning disable CA2016
-                        // ReSharper disable once MethodSupportsCancellation
-                        await writer.WriteNullAsync().ConfigureAwait(false);
-#pragma warning restore CA2016
+                        await writer.WriteNullAsync(cancellationToken).ConfigureAwait(false);
                     }
                     else
                     {
