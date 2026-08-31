@@ -13,6 +13,7 @@ using Npgsql;
 
 using NpgsqlTypes;
 
+#pragma warning disable CA1002
 public sealed class NpgsqlBulkCopy
 {
     private static readonly Dictionary<Type, IColumnWriter> ConvertWriters = [];
@@ -369,7 +370,7 @@ public sealed class NpgsqlBulkCopy
         }
 
         // Range types
-        if (fieldType.IsGenericType && fieldType.GetGenericTypeDefinition() == typeof(NpgsqlRange<>))
+        if (fieldType.IsGenericType && (fieldType.GetGenericTypeDefinition() == typeof(NpgsqlRange<>)))
         {
             if (RangeWriters.TryGetValue(fieldType, out var rangeWriter))
             {
@@ -406,3 +407,4 @@ public sealed class NpgsqlBulkCopy
         public IColumnWriter Writer;
     }
 }
+#pragma warning restore CA1002
