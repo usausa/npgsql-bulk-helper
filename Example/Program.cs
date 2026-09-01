@@ -45,7 +45,6 @@ internal static class Program
     }
 }
 
-#pragma warning disable CA1724
 public class Data
 {
     public int Id { get; set; }
@@ -58,4 +57,3 @@ public class Data
 
     public DateTime CreatedAt { get; set; }
 }
-#pragma warning restore CA1724
